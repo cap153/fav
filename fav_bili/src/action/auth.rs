@@ -155,18 +155,30 @@ async fn check_account(account: account::Model) -> Result<()> {
         }) => {
             if mid == account.account_id {
                 info!("Check passed. Hello😊, {}.", account.name);
+                // 只有完全成功，才返回 Ok
+                Ok(())
             } else {
-                error!(
-                    "Bilibili returned unmatched user id account<{}>",
-                    account.name
-                )
+                let err_msg = format!(
+                    "Bilibili returned unmatched user id for account<{}>. Expected {}, got {}",
+                    account.name, account.account_id, mid
+                );
+                // 打印日志
+                error!("{}", err_msg);
+                // ★ 关键：返回一个 Err
+                Err(anyhow::anyhow!(err_msg)) 
             }
         }
-        Err(ApiErr::UnDeserializeable(_)) => error!(
-            "Bilibili returned unexpected json, cookies expired: account<{}>",
-            account.name
-        ),
-        Err(e) => return Err(e.into()),
+        Err(ApiErr::UnDeserializeable(_)) => {
+            let err_msg = format!(
+                "Bilibili returned unexpected json, likely cookies expired for account<{}>",
+                account.name
+            );
+            // 打印日志
+            error!("{}", err_msg);
+            // ★ 关键：返回一个 Err
+            Err(anyhow::anyhow!(err_msg))
+        }
+        // 其他类型的 API 错误，直接向上抛出
+        Err(e) => Err(e.into()),
     }
-    Ok(())
 }
