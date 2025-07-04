@@ -1,10 +1,10 @@
-mod activate;
-mod auth;
-mod deactivate;
-mod fetch;
-mod like;
-mod list;
-mod pull;
+pub mod activate;
+pub mod auth;
+pub mod deactivate;
+pub mod fetch;
+pub mod like;
+pub mod list;
+pub mod pull;
 
 pub use activate::*;
 pub use auth::*;
