@@ -7,7 +7,7 @@ use dashmap::DashSet;
 use futures::StreamExt as _;
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use reqwest::header::{CONTENT_LENGTH, HeaderValue};
-use sea_orm::{ColumnTrait as _, ModelTrait as _};
+use sea_orm::ColumnTrait as _;
 use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -15,8 +15,8 @@ use tracing::{error, info, warn};
 use crate::{
     api::BiliApi,
     cookies::{add_cookie_jar, parse_cookies},
-    db::{db, Db},
-    entity::{account, media, up},
+    db::{Db, db},
+    entity::{account, media},
     payload::{DashPayload, MediaInfoPayload},
     response::{Dash, DashData, DashResp, MediaInfoData, MediaInfoResp, Page},
     state::{AccountState, MediaState},
@@ -31,25 +31,33 @@ pub async fn pull() -> Result<()> {
         .get_accounts_filtered(account::Column::State.eq(AccountState::Active))
         .await?;
     let pulled_medias = Arc::new(DashSet::<i64>::new());
-    let medias = db.all_active_pending_medias().await?;
+    let medias_with_ups = db.all_active_pending_medias().await?;
     let bars = MultiProgress::with_draw_target(ProgressDrawTarget::stderr());
     for account in accounts {
         info!("Pulling medias with account<{}>", account.name);
         add_cookie_jar(parse_cookies(&account.cookies));
         let token = CancellationToken::new();
         let mut tasks = futures::stream::iter(
-            medias
+            medias_with_ups
                 .iter()
-                .filter(|media| !pulled_medias.contains(&media.id)),
+                .filter(|(media, _)| !pulled_medias.contains(&media.id)),
         )
-        .map(|media| {
+        .map(|(media, ups)| {
             let token = token.clone();
             let db = db.clone();
             let bars = bars.clone();
             let pulled_medias = pulled_medias.clone();
+            let up_name = if ups.is_empty() {
+                media.id.to_string()
+            } else {
+                ups.iter()
+                    .map(|u| u.name.clone())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            };
             async move {
                 tokio::select! {
-                    res = download(media, db, bars), if !token.is_cancelled() => match res {
+                    res = download(media, up_name, db, bars), if !token.is_cancelled() => match res {
                         Ok(_) => { pulled_medias.insert(media.id); }
                         Err(e) => error!("{}", e),
                     },
@@ -78,7 +86,12 @@ pub async fn pull() -> Result<()> {
     Ok(())
 }
 
-async fn download(media: &media::Model, db: Db, bars: MultiProgress) -> Result<()> {
+async fn download(
+    media: &media::Model,
+    up_name: String,
+    db: Db,
+    bars: MultiProgress,
+) -> Result<()> {
     match BiliApi::request(MediaInfoPayload { aid: media.id }).await? {
         MediaInfoResp {
             data: Some(MediaInfoData { pages, .. }),
@@ -86,12 +99,6 @@ async fn download(media: &media::Model, db: Db, bars: MultiProgress) -> Result<(
             ..
         } => {
             let only1p = pages.len() == 1;
-            let up_name = media
-                .find_related(up::Entity)
-                .one(&db.db)
-                .await?
-                .map(|up| up.name)
-                .unwrap_or_else(|| media.id.to_string());
             for Page { cid, page, part } in pages {
                 let filename = if only1p {
                     format!("{}-{}", up_name, media.title)
