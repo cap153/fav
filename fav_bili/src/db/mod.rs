@@ -32,7 +32,7 @@ pub async fn db() -> &'static Db {
 
 #[derive(Debug, Clone)]
 pub struct Db {
-    db: DatabaseConnection,
+    pub db: DatabaseConnection,
 }
 
 impl Db {
