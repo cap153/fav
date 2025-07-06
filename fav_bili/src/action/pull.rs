@@ -7,7 +7,7 @@ use dashmap::DashSet;
 use futures::StreamExt as _;
 use indicatif::{MultiProgress, ProgressBar, ProgressDrawTarget, ProgressStyle};
 use reqwest::header::{CONTENT_LENGTH, HeaderValue};
-use sea_orm::ColumnTrait as _;
+use sea_orm::{ColumnTrait as _, ModelTrait as _};
 use tempfile::NamedTempFile;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, warn};
@@ -15,8 +15,8 @@ use tracing::{error, info, warn};
 use crate::{
     api::BiliApi,
     cookies::{add_cookie_jar, parse_cookies},
-    db::{Db, db},
-    entity::{account, media},
+    db::{db, Db},
+    entity::{account, media, up},
     payload::{DashPayload, MediaInfoPayload},
     response::{Dash, DashData, DashResp, MediaInfoData, MediaInfoResp, Page},
     state::{AccountState, MediaState},
@@ -86,11 +86,17 @@ async fn download(media: &media::Model, db: Db, bars: MultiProgress) -> Result<(
             ..
         } => {
             let only1p = pages.len() == 1;
+            let up_name = media
+                .find_related(up::Entity)
+                .one(&db.db)
+                .await?
+                .map(|up| up.name)
+                .unwrap_or_else(|| media.id.to_string());
             for Page { cid, page, part } in pages {
                 let filename = if only1p {
-                    format!("{}-{}", media.id, media.title)
+                    format!("{}-{}", up_name, media.title)
                 } else {
-                    format!("{}-{}({page})-{part}", media.id, media.title)
+                    format!("{}-{}({page})-{part}", up_name, media.title)
                 };
                 let DashResp {
                     data:
