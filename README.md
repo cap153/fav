@@ -78,20 +78,17 @@ Back up your favorite bilibili online resources with CLI.
 
 ## Getting Started
 
-You can download the release [here](https://github.com/kingwingfly/fav/releases) (Due to ffmpeg dynamic linking,
-version >= 1.1.0 is not provided in release page, you can compile by yourself.).
+You can download the release [here](https://github.com/kingwingfly/fav/releases)
+
+For ubuntu/debian users, the package in release page is built on ffmpeg source code release/7.1, as far as I know,
+`ffmpeg's libav*` in apt is different, so there may be a bug.
 
 For Arch Linux users, you can `yay -S fav-git` maybe, someone has maken it a package.
 
 Or you can compile by yourself:
 
 1. Install ffmpeg and pkgconf
-   ```sh
-    # e.g.
-    sudo pacman -S ffmpeg pkgconf
-    # or
-    brew install ffmpeg pkgconf
-   ```
+   You can find method in [this repo's GitHub workflow](.github/workflows/release.yaml).
 2. Clone the repo
    ```sh
    git clone https://github.com/kingwingfly/fav.git
@@ -109,7 +106,7 @@ Or after installing ffmpeg and pkgconf, run `cargo install fav_bili`.
 
 ## Usage
 
-Need `libavformat` able to be dynamic linked (`pkgconf --list-all | grep libav`).
+Need `libav*` able to be dynamic linked (check with `ldd /path/to/fav`(linux), `otool -L /path/to/fav`(macOS)).
 
 ```sh
 Back up your favorite bilibili online resources with CLI.
